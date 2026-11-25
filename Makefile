@@ -1,9 +1,10 @@
 .DEFAULT_GOAL := help
 
-APP_NAME := Zed Local
-BUNDLE_ID := dev.zed.Zed-Local
+APP_NAME := Zed
+BUNDLE_ID := dev.zed.Zed
 BUNDLE_DIR := target/bundle/$(APP_NAME).app
 INSTALL_DIR := /Applications/$(APP_NAME).app
+CLI_LINK := /opt/homebrew/bin/zed
 ARGS ?=
 
 .PHONY: help run run-fast run-release open check check-sidebar build build-release \
@@ -36,7 +37,7 @@ build: ## Build debug binary
 	cargo build -p zed --bin zed
 
 build-release: ## Build release zed + cli binaries
-	cargo build --release -p zed --bin zed -p cli
+	cargo build --release -p zed -p cli --bin zed --bin cli
 
 bundle: build-release ## Package a standalone macOS .app bundle in target/bundle/
 	@rm -rf "$(BUNDLE_DIR)"
@@ -74,14 +75,25 @@ bundle: build-release ## Package a standalone macOS .app bundle in target/bundle
 		'  <key>LSMinimumSystemVersion</key><string>12.0</string>' \
 		'  <key>NSHighResolutionCapable</key><true/>' \
 		'  <key>NSSupportsAutomaticGraphicsSwitching</key><true/>' \
-		'</dict></plist>' > "$(BUNDLE_DIR)/Contents/Info.plist"
+		'  <key>CFBundleURLTypes</key><array><dict>' \
+		'    <key>CFBundleURLName</key><string>Zed URL</string>' \
+		'    <key>CFBundleURLSchemes</key><array><string>zed</string><string>zed-cli</string></array>' \
+		'  </dict></array>' > "$(BUNDLE_DIR)/Contents/Info.plist"
+	@cat crates/zed/resources/info/DocumentTypes.plist >> "$(BUNDLE_DIR)/Contents/Info.plist"
+	@cat crates/zed/resources/info/Permissions.plist >> "$(BUNDLE_DIR)/Contents/Info.plist"
+	@printf '%s\n' '</dict></plist>' >> "$(BUNDLE_DIR)/Contents/Info.plist"
+	@plutil -lint "$(BUNDLE_DIR)/Contents/Info.plist" >/dev/null
 	@codesign --force --deep --sign - "$(BUNDLE_DIR)"
 	@echo "Bundled: $(BUNDLE_DIR)"
 
-install: bundle ## Build and install "$(APP_NAME).app" into /Applications
+install: bundle ## Build, install /Applications/Zed.app, and link zed CLI
 	@rm -rf "$(INSTALL_DIR)"
 	@cp -R "$(BUNDLE_DIR)" "$(INSTALL_DIR)"
+	@ln -sf "$(INSTALL_DIR)/Contents/MacOS/cli" "$(CLI_LINK)"
+	@touch "$(INSTALL_DIR)"
 	@echo "Installed: $(INSTALL_DIR)"
+	@echo "CLI linked: $(CLI_LINK) -> $(INSTALL_DIR)/Contents/MacOS/cli"
+	@echo "If Zed is currently open, quit (Cmd+Q) and reopen it to use the new build."
 
 test: ## Run sidebar unit tests
 	cargo test -p sidebar
