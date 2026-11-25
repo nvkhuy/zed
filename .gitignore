@@ -1,0 +1,55 @@
+# Build outputs
+**/target
+**/cargo-target
+*.wasm
+*.app
+*.dmg
+
+# macOS & Xcode
+.DS_Store
+.AppleDouble
+.LSOverride
+*.xcodeproj
+*.xcworkspace
+DerivedData/
+xcuserdata/
+.swiftpm
+.build
+Packages
+
+# Databases, logs, caches
+**/*.db
+**/*.sqlite
+**/*.sqlite-*
+*.log
+.blob_store
+.perf-runs
+.local*
+.cache
+
+# Test & generated artifacts
+**/*.proptest-regressions
+/assets/*licenses.*
+/crates/theme/schemas/theme.json
+
+# Editors, IDEs, local AI/agent configs
+.idea
+.vscode
+.agents
+.claude/settings.local.json
+.envrc
+**/.direnv
+
+# Node / Python tooling
+/node_modules/
+**/venv
+.venv
+*.pyc
+.pytest_cache
+.wrangler
+
+# Secrets
+.env
+.env.*
+.env.secret.toml
+.netrc
