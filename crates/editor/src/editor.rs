@@ -31,6 +31,7 @@ mod git;
 mod highlight_matching_bracket;
 pub mod hover_links;
 pub mod hover_popover;
+mod implementation_indicators;
 mod indent_guides;
 mod inlays;
 mod inline_input;
@@ -935,6 +936,7 @@ enum LspDataKind {
     FoldingRanges,
     CodeLens,
     DocumentSymbols,
+    ImplementationIndicators,
 }
 
 enum CodeActionsForSelection {
@@ -1162,6 +1164,7 @@ pub struct Editor {
     last_horizontal_scrollbar_visible: bool,
     expect_bounds_change: Option<Bounds<Pixels>>,
     runnables: RunnableData,
+    implementation_indicators: implementation_indicators::ImplementationIndicatorData,
     bookmark_store: Option<Entity<BookmarkStore>>,
     bookmarks_tab_state: Option<Entity<BookmarksTabState>>,
     bookmarks_tab_subscription: Option<Subscription>,
@@ -1271,6 +1274,7 @@ pub struct EditorSnapshot {
     show_git_diff_gutter: Option<bool>,
     show_code_actions: Option<bool>,
     show_runnables: Option<bool>,
+    has_implementation_indicators: bool,
     show_breakpoints: Option<bool>,
     show_bookmarks: Option<bool>,
     git_blame_gutter_max_author_length: Option<usize>,
@@ -2561,6 +2565,7 @@ impl Editor {
                 })
                 .unwrap_or_default(),
             runnables: RunnableData::new(),
+            implementation_indicators: Default::default(),
             lsp_data_tasks: HashMap::default(),
             offscreen_lsp_data_tasks: HashMap::default(),
             colors: None,
@@ -3163,6 +3168,7 @@ impl Editor {
             semantic_tokens_enabled: self.semantic_token_state.enabled(),
             show_code_actions: self.show_code_actions,
             show_runnables: self.show_runnables,
+            has_implementation_indicators: !self.implementation_indicators.is_empty(),
             show_bookmarks: self.show_bookmarks,
             show_breakpoints: self.show_breakpoints,
             git_blame_gutter_max_author_length,
@@ -11020,6 +11026,7 @@ impl Editor {
     }
 
     fn handle_focus_in(&mut self, _: &mut Window, cx: &mut Context<Self>) {
+        self.refresh_implementation_indicators(None, cx);
         cx.emit(EditorEvent::FocusedIn)
     }
 
@@ -11419,6 +11426,7 @@ impl Editor {
         self.refresh_folding_ranges(for_buffer, window, cx);
         self.refresh_code_lenses(for_buffer, window, cx);
         self.refresh_document_symbols(for_buffer, cx);
+        self.refresh_implementation_indicators(for_buffer, cx);
     }
 
     fn lsp_data_buffers(
@@ -11523,6 +11531,7 @@ impl Editor {
         self.remove_invalid_code_lenses(buffer_ids, buffers_removed, &snapshot, cx);
         self.remove_invalid_inline_diagnostics(buffer_ids, buffers_removed, &snapshot, cx);
         self.remove_invalid_document_colors(buffer_ids, buffers_removed, &snapshot, cx);
+        self.remove_invalid_implementation_indicators(buffer_ids, &snapshot);
     }
 
     fn is_eligible_for_language_detection(buffer: &Buffer) -> bool {
@@ -12542,9 +12551,12 @@ impl EditorSnapshot {
             let left_padding = git_blame_entries_width.unwrap_or(Pixels::ZERO)
                 + if !is_singleton {
                     ch_width * 4.0
-                // runnables, breakpoints and bookmarks are shown in the same place
-                // if all three are there only the runnable is shown
-                } else if show_runnables || show_breakpoints || show_bookmarks {
+                // runnables, implementation indicators, breakpoints and bookmarks are shown in the same place
+                } else if show_runnables
+                    || self.has_implementation_indicators
+                    || show_breakpoints
+                    || show_bookmarks
+                {
                     ch_width * 3.0
                 } else if show_git_gutter && show_line_numbers {
                     ch_width * 2.0

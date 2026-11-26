@@ -7593,6 +7593,20 @@ impl LspStore {
         }
     }
 
+    pub fn implementation_locations(
+        &mut self,
+        buffer: &Entity<Buffer>,
+        position: PointUtf16,
+        cx: &mut Context<Self>,
+    ) -> Task<Vec<(LanguageServerId, Vec<lsp::Location>)>> {
+        self.request_multiple_lsp_locally(
+            buffer,
+            Some(position),
+            GetImplementationLocations { position },
+            cx,
+        )
+    }
+
     pub fn references(
         &mut self,
         buffer: &Entity<Buffer>,

@@ -2764,6 +2764,37 @@ impl EditorElement {
         })
     }
 
+    fn layout_implementation_indicators(
+        &self,
+        gutter: &Gutter,
+        indicators: &HashMap<DisplayRow, crate::implementation_indicators::ImplementationIndicator>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Vec<AnyElement> {
+        if self.split_side == Some(SplitSide::Left) || indicators.is_empty() {
+            return Vec::new();
+        }
+
+        self.editor.update(cx, |editor, cx| {
+            indicators
+                .iter()
+                .filter_map(|(display_row, indicator)| {
+                    let indicator = indicator.clone();
+                    gutter.layout_item(
+                        *display_row,
+                        |cx, _| {
+                            editor
+                                .render_implementation_indicator(*display_row, indicator.clone(), cx)
+                                .into_any_element()
+                        },
+                        window,
+                        cx,
+                    )
+                })
+                .collect_vec()
+        })
+    }
+
     fn layout_expand_toggles(
         &self,
         gutter_hitbox: &Hitbox,
@@ -5642,6 +5673,10 @@ impl EditorElement {
 
         for test_indicator in layout.test_indicators.iter_mut() {
             test_indicator.paint(window, cx);
+        }
+
+        for implementation_indicator in layout.implementation_indicators.iter_mut() {
+            implementation_indicator.paint(window, cx);
         }
 
         if let Some(diff_review_button) = layout.diff_review_button.as_mut() {
@@ -9743,6 +9778,21 @@ impl Element for EditorElement {
                         Vec::new()
                     };
 
+                    let mut implementation_indicator_rows = self.editor.update(cx, |editor, cx| {
+                        editor.active_implementation_indicators(start_row..end_row, window, cx)
+                    });
+                    implementation_indicator_rows.retain(|row, _| {
+                        !run_indicator_rows.contains(row)
+                            && !breakpoint_rows.contains_key(row)
+                            && !bookmark_rows.contains(row)
+                    });
+                    let implementation_indicators = self.layout_implementation_indicators(
+                        &gutter,
+                        &implementation_indicator_rows,
+                        window,
+                        cx,
+                    );
+
                     let gutter_hover_button = self
                         .editor
                         .read(cx)
@@ -9755,6 +9805,7 @@ impl Element for EditorElement {
                         && !breakpoint_rows.contains_key(&row)
                         && !run_indicator_rows.contains(&row)
                         && !bookmark_rows.contains(&row)
+                        && !implementation_indicator_rows.contains_key(&row)
                         && (show_bookmarks || show_breakpoints)
                     {
                         let position = snapshot
@@ -10059,6 +10110,7 @@ impl Element for EditorElement {
                         diff_hunk_controls,
                         mouse_context_menu,
                         test_indicators,
+                        implementation_indicators,
                         bookmarks,
                         breakpoints,
                         diff_review_button,
@@ -10268,6 +10320,7 @@ pub struct EditorLayout {
     navigation_overlay_paint_commands: Vec<NavigationOverlayPaintCommand>,
     selections: Vec<(PlayerColor, Vec<SelectionLayout>)>,
     test_indicators: Vec<AnyElement>,
+    implementation_indicators: Vec<AnyElement>,
     bookmarks: Vec<AnyElement>,
     breakpoints: Vec<AnyElement>,
     diff_review_button: Option<AnyElement>,

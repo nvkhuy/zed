@@ -4564,6 +4564,18 @@ impl Project {
         })
     }
 
+    pub fn implementation_locations<T: ToPointUtf16>(
+        &mut self,
+        buffer: &Entity<Buffer>,
+        position: T,
+        cx: &mut Context<Self>,
+    ) -> Task<Vec<(lsp::LanguageServerId, Vec<lsp::Location>)>> {
+        let position = position.to_point_utf16(buffer.read(cx));
+        self.lsp_store.update(cx, |lsp_store, cx| {
+            lsp_store.implementation_locations(buffer, position, cx)
+        })
+    }
+
     pub fn references<T: ToPointUtf16>(
         &mut self,
         buffer: &Entity<Buffer>,

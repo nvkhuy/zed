@@ -207,6 +207,11 @@ pub(crate) struct GetImplementations {
 }
 
 #[derive(Debug, Clone, Copy)]
+pub(crate) struct GetImplementationLocations {
+    pub position: PointUtf16,
+}
+
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct GetReferences {
     pub position: PointUtf16,
 }
@@ -1683,6 +1688,111 @@ impl LspCommand for GetImplementations {
         cx: AsyncApp,
     ) -> Result<Vec<LocationLink>> {
         location_links_from_proto(message.links, project, cx).await
+    }
+
+    fn buffer_id_from_proto(message: &proto::GetImplementation) -> Result<BufferId> {
+        BufferId::new(message.buffer_id)
+    }
+}
+
+#[async_trait(?Send)]
+impl LspCommand for GetImplementationLocations {
+    type Response = Vec<lsp::Location>;
+    type LspRequest = lsp::request::GotoImplementation;
+    type ProtoRequest = proto::GetImplementation;
+
+    fn display_name(&self) -> &str {
+        "Get implementation locations"
+    }
+
+    fn check_capabilities(&self, capabilities: AdapterServerCapabilities<'_>) -> bool {
+        capabilities
+            .server_capabilities
+            .implementation_provider
+            .as_ref()
+            .is_some_and(|capability| match capability {
+                lsp::ImplementationProviderCapability::Simple(enabled) => *enabled,
+                lsp::ImplementationProviderCapability::Options(_options) => true,
+            })
+    }
+
+    fn to_lsp(
+        &self,
+        path: &Path,
+        _: &Buffer,
+        _: &Arc<LanguageServer>,
+        _: &App,
+    ) -> Result<lsp::GotoImplementationParams> {
+        Ok(lsp::GotoImplementationParams {
+            text_document_position_params: make_lsp_text_document_position(path, self.position)?,
+            work_done_progress_params: Default::default(),
+            partial_result_params: Default::default(),
+        })
+    }
+
+    async fn response_from_lsp(
+        self,
+        message: Option<lsp::GotoImplementationResponse>,
+        _: Entity<LspStore>,
+        _: Entity<Buffer>,
+        _: LanguageServerId,
+        _: AsyncApp,
+    ) -> Result<Vec<lsp::Location>> {
+        Ok(definition_locations_from_lsp(message)
+            .into_iter()
+            .map(|(_, uri, range)| lsp::Location { uri, range })
+            .collect())
+    }
+
+    fn to_proto(&self, project_id: u64, buffer: &Buffer) -> proto::GetImplementation {
+        proto::GetImplementation {
+            project_id,
+            buffer_id: buffer.remote_id().into(),
+            position: Some(language::proto::serialize_anchor(
+                &buffer.anchor_before(self.position),
+            )),
+            version: serialize_version(&buffer.version()),
+        }
+    }
+
+    async fn from_proto(
+        message: proto::GetImplementation,
+        _: Entity<LspStore>,
+        buffer: Entity<Buffer>,
+        mut cx: AsyncApp,
+    ) -> Result<Self> {
+        let position = message
+            .position
+            .and_then(deserialize_anchor)
+            .context("invalid position")?;
+        buffer
+            .update(&mut cx, |buffer, _| {
+                buffer.wait_for_version(deserialize_version(&message.version))
+            })
+            .await?;
+        Ok(Self {
+            position: buffer.read_with(&cx, |buffer, _| position.to_point_utf16(buffer)),
+        })
+    }
+
+    fn response_to_proto(
+        _: Vec<lsp::Location>,
+        _: &mut LspStore,
+        _: PeerId,
+        _: &clock::Global,
+        _: &mut App,
+    ) -> proto::GetImplementationResponse {
+        proto::GetImplementationResponse { links: Vec::new() }
+    }
+
+    async fn response_from_proto(
+        self,
+        _: proto::GetImplementationResponse,
+        _: Entity<LspStore>,
+        _: Entity<Buffer>,
+        _: AsyncApp,
+    ) -> Result<Vec<lsp::Location>> {
+        Ok(Vec::new())
     }
 
     fn buffer_id_from_proto(message: &proto::GetImplementation) -> Result<BufferId> {
