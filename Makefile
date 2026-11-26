@@ -2,6 +2,8 @@
 
 APP_NAME := Zed
 BUNDLE_ID := dev.zed.Zed
+RAW_VERSION := $(shell git describe --tags --abbrev=0 2>/dev/null)
+APP_VERSION ?= $(if $(RAW_VERSION),$(patsubst v%,%,$(RAW_VERSION)),0.1.0)
 BUNDLE_DIR := target/bundle/$(APP_NAME).app
 INSTALL_DIR := /Applications/$(APP_NAME).app
 CLI_LINK := /opt/homebrew/bin/zed
@@ -70,7 +72,7 @@ bundle: build-release ## Package a standalone macOS .app bundle in target/bundle
 		'  <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>' \
 		'  <key>CFBundleName</key><string>$(APP_NAME)</string>' \
 		'  <key>CFBundlePackageType</key><string>APPL</string>' \
-		'  <key>CFBundleShortVersionString</key><string>1.0.0</string>' \
+		'  <key>CFBundleShortVersionString</key><string>$(APP_VERSION)</string>' \
 		'  <key>CFBundleVersion</key><string>1</string>' \
 		'  <key>LSMinimumSystemVersion</key><string>12.0</string>' \
 		'  <key>NSHighResolutionCapable</key><true/>' \
